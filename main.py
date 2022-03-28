@@ -1,39 +1,41 @@
 from bs4 import BeautifulSoup
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 import random
 from tkinter import *
 lahto = 'https://en.wikipedia.org'
-saako = True
 sites = []
-kiel = [] 
+used_hrefs = [] 
 i = 0
 times = 0
 urli = ''
 
+# Setting up web scraping things
+session = requests.Session()
+retry = Retry(connect=3, backoff_factor=0.5)
+adapter = HTTPAdapter(max_retries=retry)
+session.mount('http://', adapter)
+session.mount('https://', adapter)
 
+# This is where the magic happens
 def get_random_wiki():
-    global times,i,lahto,saako,kiel,sites,urli
+    global times,i,lahto,used_hrefs,sites,urli
     i += 1
-    wiki = requests.get(urli).text
-    s_testi = g_soup(wiki)  
-    sites.append(s_testi.find(id="firstHeading").text)
+    wiki = session.get(urli).text
+    souped_wiki = g_soup(wiki)  
+    sites.append(souped_wiki.find(id="firstHeading").text)
     hrefs = []
-    for a in s_testi.find_all('a', href=True):
+    for a in souped_wiki.find_all('a', href=True):
         if a['href'][0:6] == '/wiki/' and not any(x in a['href'] for x in [':','#']) and 'Main_Page' not in a['href'] and '(identifier)' not in a['href'] and 'commons.wikimedia.org' not in a['href'] and 'species.wikimedia.org' not in a['href'] and 'Wikisitaatit' not in a['href'] and 'identifier' not in a['href']:
             hrefs.append(a['href'])
-    kiel.append('/wiki/' + urli.split('/')[-1])
-    ahrefs = [x for x in hrefs if x not in kiel]
+    hrefs_removed_already_used_ones = [x for x in hrefs if x not in used_hrefs]
     if i < times:
         try:              
-            urli = lahto + random.choice(ahrefs)
+            urli = lahto + random.choice(hrefs_removed_already_used_ones)
+            used_hrefs.append('/wiki/' + urli.split('/')[-1])
         except:
-            try:
-                urli = lahto + kiel[-2]
-            except:
-                try:
-                    urli = lahto + kiel[-3]
-                except:
-                    urli = lahto + kiel[-4]    
+            urli = lahto + used_hrefs[-1]
     else:
         sites.pop(0)
         site = random.choice(sites)
@@ -44,20 +46,22 @@ def get_random_wiki():
         print('\nResult:\n', site) 
     print(f"Done: {int(i/times*100)}%")
 
+# Setting the depth (how many links down will get from seed)
 def set_depth():
     global times
     times = int(depth_Input.get())
 
+# Refreshing variables for multiple uses and starting the process
 def start():
-    global saako,sites,kiel,i,urli
-    saako = True
+    global sites,used_hrefs,i,urli
     sites = []
-    kiel = [] 
+    used_hrefs = [] 
     i = 0
     urli = seed_Input.get()
     for x in range(times):
         get_random_wiki()
 
+# Setting languages
 def finnish():
     global lahto
     lahto = 'https://fi.wikipedia.org'
@@ -74,11 +78,12 @@ def vaihda(e_f):
     else:
         lahto = 'https://fi.wikipedia.org'   
 
-
+# Souping
 def g_soup(text):
     soup = BeautifulSoup(text, 'lxml')
     return soup
 
+# For info window
 def New_Window():
     Window = Toplevel()
     canvas = Canvas(Window, height=200, width=800)
@@ -86,7 +91,7 @@ def New_Window():
     label4.pack() 
     canvas.pack()
  
-
+#UI stuff
 root = Tk()
 root.geometry('500x500')
 root.title('Random Wikipedia site')
